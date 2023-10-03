@@ -1,96 +1,205 @@
 # -*- coding: utf-8 -*-
 
+#####
+# VosNoms (Matricule) .~= À MODIFIER =~.
+###
+
 import numpy as np
-import sys
-import solution_regression as sr
-import gestion_donnees as gd
-import matplotlib.pyplot as plt
+import random
+from sklearn import linear_model
+from sklearn.utils import shuffle
 
 
-def warning(erreur_test, erreur_apprentissage, bruit):
-    """
-    Fonction qui affiche un WARNING à l'ecran lorsque les erreurs obtenues en fonction du bruit
-    indique une possibilite de sur- ou de sous-apprentissage
 
-    erreur_test: erreur obtenue sur l'ensemble de test
-    erreur_apprentissage: erreur obtenue sur l'ensemble d'apprentissage
-    bruit: magnitude du bruit
-    """
-    # AJOUTER CODE ICI
-    # Écrivez des conditions simples, avec des valeurs approximatives "harcodées",
-    # qui vérifient si nous sommes en présence de sur- ou sous-apprentissage.
-    if (erreur_apprentissage > bruit and erreur_test > bruit) :
-        print("On a un sous-apprentissage")
-    elif (erreur_apprentissage < bruit and erreur_test > bruit) :
-        print("On a un sur-apprentissage")
+class Regression:
+    def __init__(self, lamb, m=1):
+        self.lamb = lamb
+        self.w = None
+        self.M = m
 
+    def fonction_base_polynomiale(self, x):
+        """
+        Fonction de base qui projette la donnee x vers un espace polynomial tel que mentionne au chapitre 3.
+        Si x est un scalaire, alors phi_x sera un vecteur à self.M dimensions : (x^1,x^2,...,x^self.M)
+        Si x est un vecteur de N scalaires, alors phi_x sera un tableau 2D de taille NxM
 
-################################
-# Execution en tant que script 
-#
-# tapper python3 regression.py 1 sin 20 20 0.3 10 0.001
-#
-# dans un terminal
-################################
+        NOTE : En mettant phi_x = x, on a une fonction de base lineaire qui fonctionne pour une regression lineaire
+        """
+        # AJOUTER CODE ICI
+        
+        '''phi_x = []
 
+        if isinstance(x, (float,int)):
+            # Si x est un scalaire
+            phi_x = [x**i for i in range(1, self.M + 1)]
+        elif isinstance(x, np.ndarray):
+            # Si x est une liste de scalaires
+            phi_x = np.array([[y**i for i in range(1, self.M + 1)] for y in x])
+        return (phi_x)'''
+        if(type(x) == np.ndarray):  #Si x est un vecteur de N scalaires, alors phi_x sera un tableau 2D de taille NxM
+            phi_x = []
+            for i in x:
+                phi_x += [[i**j for j in range(1, self.M + 1)]]
+            phi_x = np.array(phi_x)
+        else:                       #Si x est un scalaire, alors phi_x sera un vecteur à self.M dimensions : (x^1,x^2,...,x^self.M)
+            phi_x = np.array([x**i for i in range(1, self.M + 1)])
 
-def main():
+        return phi_x
     
-    if len(sys.argv) < 8:
-        print("Usage: python regression.py sk modele_gen nb_train nb_test bruit M lambda\n")
-        print("\t sk=0: using_sklearn=False, sk=1: using_sklearn=True")
-        print("\t modele_gen=lineaire, sin ou tanh")
-        print("\t nb_train: nombre de donnees d'entrainement")
-        print("\t nb_test: nombre de donnees de test")
-        print("\t bruit: amplitude du bruit appliqué aux données")
-        print("\t M: degré du polynome de la fonction de base (recherche d'hyperparametre lorsque M<=0) ")
-        print("\t lambda: lambda utilisé par le modele de Ridge\n")
-        print(" exemple: python3 regression.py 1 sin 20 20 0.3 10 0.001\n")
-        return
+        '''if x.ndim == 0:
+            phi_x = [x**i for i in range(1, self.M + 1)]
+            # phi_x = x ** np.arange(1, self.M+1 )
+        else:
+            # phi_x = np.empty([np.shape(x)[0], self.M])
+            phi_x = np.ones([np.shape(x)[0], self.M])
+            phi_x = [[y**i for i in range(1, self.M + 1)] for y in x]
+            phi_x=np.array(phi_x)'''
+
+        return phi_x
     
-    skl = int(sys.argv[1]) > 0.5
-    modele_gen = sys.argv[2]
-    nb_train = int(sys.argv[3])
-    nb_test = int(sys.argv[4])
-    bruit = float(sys.argv[5])
-    m = int(sys.argv[6])
-    lamb = float(sys.argv[7])
-    w = [0.3, 4.1]  # Parametres du modele generatif
 
-    # Creer le gestionnaire de donnees et generer les donnees d'entraînement et de test
-    gestionnaire_donnees = gd.GestionDonnees(w, modele_gen, nb_train, nb_test, bruit)
-    [x_train, t_train, x_test, t_test] = gestionnaire_donnees.generer_donnees()
+    def recherche_hyperparametre(self, X, t):
+        """
+        Trouver la meilleure valeur pour l'hyper-parametre self.M (pour un lambda fixe donné en entrée).
 
-    # Entrainement du modele de regression
-    regression = sr.Regression(lamb, m)
-    regression.entrainement(x_train, t_train, using_sklearn=skl)
+        Option 1
+        Validation croisée de type "k-fold" avec k=10. La méthode array_split de numpy peut être utlisée 
+        pour diviser les données en "k" parties. Si le nombre de données en entrée N est plus petit que "k", 
+        k devient égal à N. Il est important de mélanger les données ("shuffle") avant de les sous-diviser
+        en "k" parties."""
 
-    # Predictions sur les ensembles d'entrainement et de test
-    predictions_train = np.array([regression.prediction(x) for x in x_train])
-    predictions_test = np.array([regression.prediction(x) for x in x_test])
+        k=10
 
-    # Calcul des erreurs
-    erreurs_entrainement = np.array([regression.erreur(t_n, p_n)
-                                     for t_n, p_n in zip(t_train, predictions_train)])
-    erreurs_test = np.array([regression.erreur(t_n, p_n)
-                             for t_n, p_n in zip(t_test, predictions_test)])
+        '''data = np.concatenate((X,t.T))
+        random.shuffle(data)'''
 
-    print("Erreur d'entraînement :", "%.2f" % erreurs_entrainement.mean())
-    print("Erreur de test :", "%.2f" % erreurs_test.mean())
-    print("")
+        if k > len(X): 
+            k = len(X)
+        
+        X_shuffled, t_shufled = shuffle(X, t, random_state=0)
+        X_folds = np.array_split(X_shuffled, k)
+        t_folds = np.array_split(t_shufled, k)
+        
+        '''data_folds = np.array_split(data,k)
+        data_folds = np.array(data_folds)
+        print(data_folds.shape)'''
+        average_errors = {}
+        m_values = [i for i in range(1, 11)]
+        min_value = float('inf')
+        self.M = 1
 
-    warning(erreurs_test.mean(), erreurs_entrainement.mean(), bruit)
+        for m in m_values : 
 
-    # Affichage
-    gestionnaire_donnees.afficher_donnees_et_modele(x_train, t_train, True)
-    predictions_range = np.array([regression.prediction(x) for x in np.arange(0, 1, 0.01)])
-    gestionnaire_donnees.afficher_donnees_et_modele(np.arange(0, 1, 0.01), predictions_range, False)
+            all_mse = []
+            for i in range(k): 
+                
+                X_train = np.delete(X_folds,i)
+                X_valid = X_folds[i]
 
-    if m >= 0:
-        plt.suptitle('Resultat SANS recherche d\'hyperparametres')
-    else:
-        plt.suptitle('Resultat AVEC recherche d\'hyperparametres')
-    plt.show()
+                t_train = np.delete(t_folds,i)
+                t_valid = t_folds[i]
+              
 
-if __name__ == "__main__":
-    main()
+                self.entrainement(X_train, t_train, False)
+
+                predictions = np.array([self.prediction(x_valid) for x_valid in X_valid])
+
+                MSE = np.mean(self.erreur(t_valid, predictions))
+                all_mse.append(MSE)
+
+            average_errors[m] = np.mean(all_mse)
+
+        for key, value in average_errors.items():
+            if value < min_value: 
+                min_value  = value
+                self.M = key
+        
+        return self.M
+
+    
+    
+        """
+        Option 2
+        Sous-échantillonage aléatoire avec ratio 80:20 pour Dtrain et Dvalid, avec un nombre de répétition k=10.
+
+        Note: 
+
+        Le resultat est mis dans la variable self.M
+        X: vecteur de donnees
+        t: vecteur de cibles """
+        
+
+    def entrainement(self, X, t, using_sklearn=False):
+        
+        """Entraîne la regression lineaire sur l'ensemble d'entraînement forme des
+        entrees ``X`` (un tableau 2D Numpy, ou la n-ieme rangee correspond à l'entree
+        x_n) et des cibles ``t`` (un tableau 1D Numpy ou le
+        n-ieme element correspond à la cible t_n). L'entraînement doit
+        utiliser le poids de regularisation specifie par ``self.lamb``.
+
+        Cette methode doit assigner le champs ``self.w`` au vecteur
+        (tableau Numpy 1D) de taille D+1, tel que specifie à la section 3.1.4
+        du livre de Bishop.
+        
+        Lorsque using_sklearn=True, vous devez utiliser la classe "Ridge" de 
+        la librairie sklearn (voir http://scikit-learn.org/stable/modules/linear_model.html)
+        
+        Lorsque using_sklearn=Fasle, vous devez implementer l'equation 3.28 du
+        livre de Bishop. Il est suggere que le calcul de ``self.w`` n'utilise
+        pas d'inversion de matrice, mais utilise plutôt une procedure
+        de resolution de systeme d'equations lineaires (voir np.linalg.solve).
+
+        Aussi, la variable membre self.M sert à projeter les variables X vers un espace polynomiale de degre M
+        (voir fonction self.fonction_base_polynomiale())
+
+        NOTE IMPORTANTE : lorsque self.M <= 0, il faut trouver la bonne valeur de self.M
+
+        """
+        #AJOUTER CODE ICI
+        if self.M <= 0:
+           self.recherche_hyperparametre(X, t)
+
+        phi_x = self.fonction_base_polynomiale(X)
+        
+
+        if using_sklearn == True:
+            reg = linear_model.Ridge(alpha = self.lamb)
+            reg.fit(phi_x, t)
+            self.w = reg.coef_
+            self.w[0] = reg.intercept_
+        
+        else:
+            I = np.identity(phi_x.shape[1])
+            produit_phi = np.dot(np.transpose(phi_x),phi_x)
+            t = np.array(t)
+            self.w = np.linalg.solve(self.lamb * I + produit_phi, np.transpose(phi_x).dot(t) )
+
+        #return self.w
+
+        
+
+    def prediction(self, x):
+        """
+        Retourne la prediction de la regression lineaire
+        pour une entree, representee par un tableau 1D Numpy ``x``.
+
+        Cette methode suppose que la methode ``entrainement()``
+        a prealablement ete appelee. Elle doit utiliser le champs ``self.w``
+        afin de calculer la prediction y(x,w) (equation 3.1 et 3.3).
+        """
+        # AJOUTER CODE ICI
+
+        phi_x = self.fonction_base_polynomiale(x)
+        return np.dot(np.transpose(self.w), phi_x)
+
+    @staticmethod
+    def erreur(t, prediction):
+        """
+        Retourne l'erreur de la difference au carre entre
+        la cible ``t`` et la prediction ``prediction``.
+        """
+        # AJOUTER CODE ICI
+        return (prediction - t) ** 2
+
+
+
