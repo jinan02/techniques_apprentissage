@@ -19,6 +19,11 @@ def warning(erreur_test, erreur_apprentissage, bruit):
     # AJOUTER CODE ICI
     # Écrivez des conditions simples, avec des valeurs approximatives "harcodées",
     # qui vérifient si nous sommes en présence de sur- ou sous-apprentissage.
+    if (erreur_apprentissage > bruit and erreur_test > bruit) :
+        print("On a un sous-apprentissage")
+    elif (erreur_apprentissage < bruit and erreur_test > bruit) :
+        print("On a un sur-apprentissage")
+
 
 ################################
 # Execution en tant que script 
