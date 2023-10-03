@@ -66,5 +66,3 @@ class GestionDonnees:
         plt.plot(x_mod, t_mod, 'k')
         plt.ylim(ymin=-1.5, ymax=4.5)
 
-
-
